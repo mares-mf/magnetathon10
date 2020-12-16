@@ -13,7 +13,7 @@ provider "aws" {
 # Create bucket
 resource "aws_s3_bucket" "magnetathon10" {
 
-  bucket = "s3-terraform-magnetathon10"
+  bucket = "s3-terraform-magnetathon10-${var.deployment_name}"
   acl    = "public-read"
   tags = {
     Name        = "Magnetathon10 Bucket"
@@ -37,7 +37,7 @@ resource "aws_s3_bucket_policy" "static_site" {
             "Effect": "Allow",
             "Principal": "*",
             "Action": "s3:GetObject",
-            "Resource": "arn:aws:s3:::s3-terraform-magnetathon10/*"
+            "Resource": "arn:aws:s3:::s3-terraform-magnetathon10-${var.deployment_name}/*"
         }
     ]
 }
