@@ -21,8 +21,8 @@ resource "aws_s3_bucket" "magnetathon10" {
   }
 }
 
-variable "mime_types" {
-  default = {
+locals {
+  mime_types = {
     htm   = "text/html"
     html  = "text/html"
     css   = "text/css"
@@ -30,6 +30,8 @@ variable "mime_types" {
     js    = "application/javascript"
     map   = "application/javascript"
     json  = "application/json"
+    ico = "image/png"
+    svg = "image/svg+xml"
   }
 }
 
