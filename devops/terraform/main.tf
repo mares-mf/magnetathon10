@@ -14,11 +14,34 @@ provider "aws" {
 resource "aws_s3_bucket" "magnetathon10" {
 
   bucket = "s3-terraform-magnetathon10"
-  acl    = "private"
+  acl    = "public-read"
   tags = {
     Name        = "Magnetathon10 Bucket"
     Environment = "Dev"
   }
+
+  website {
+    index_document = "index.html"
+    error_document = "404.html"
+  }
+}
+
+resource "aws_s3_bucket_policy" "static_site" {
+  bucket = aws_s3_bucket.magnetathon10.id
+
+  policy = <<POLICY
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Principal": "*",
+            "Action": "s3:GetObject",
+            "Resource": "arn:aws:s3:::s3-terraform-magnetathon10/*"
+        }
+    ]
+}
+POLICY
 }
 
 locals {
