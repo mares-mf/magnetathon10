@@ -21,12 +21,11 @@ resource "aws_s3_bucket" "magnetathon10" {
   }
 }
 
-# TODO: change to upload all objects in ui/build
-# Upload an object
-resource "aws_s3_bucket_object" "object1" {
+#upload everything in dist
+resource "aws_s3_bucket_object" "dist" {
+  for_each = fileset("../../ui/magnetathon/.next/", "*")
   bucket = aws_s3_bucket.magnetathon10.id
-  key    = "index.html"
-  acl    = "private"
-  source = "../../ui/index.html"
-  etag = filemd5("../../ui/index.html")
+  key = each.value
+  source = "../../ui/magnetathon/.next/${each.value}"
+  etag = filemd5("../../ui/magnetathon/.next/${each.value}")
 }
