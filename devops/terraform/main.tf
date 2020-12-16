@@ -23,9 +23,9 @@ resource "aws_s3_bucket" "magnetathon10" {
 
 #upload everything in dist
 resource "aws_s3_bucket_object" "dist" {
-  for_each = fileset("../../ui/magnetathon/.next/", "*")
+  for_each = fileset("../../ui/magnetathon/out/", "**")
   bucket = aws_s3_bucket.magnetathon10.id
   key = each.value
-  source = "../../ui/magnetathon/.next/${each.value}"
-  etag = filemd5("../../ui/magnetathon/.next/${each.value}")
+  source = "../../ui/magnetathon/out/${each.value}"
+  etag = filemd5("../../ui/magnetathon/out/${each.value}")
 }
