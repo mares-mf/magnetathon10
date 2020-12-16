@@ -1,2 +1,5 @@
 # ide files
 .idea
+
+# Generated files
+.terraform/
