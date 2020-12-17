@@ -22,7 +22,7 @@ export default function Home() {
           <Link href="/ContentType">
             <a className="card">
               <h3>Content! &rarr;</h3>
-              <p>Explore some content.</p>
+              <p>Explore some content that we made ourselves!</p>
             </a>
           </Link>
 
