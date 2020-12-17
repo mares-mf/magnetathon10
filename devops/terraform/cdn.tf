@@ -13,6 +13,9 @@ locals {
   s3_origin_id = "s3-terraform-magnetathon-10-${var.deployment_name}"
 }
 
+# Get caller information
+data "aws_caller_identity" "current" {}
+
 # Create bucket
 resource "aws_s3_bucket" "magnetathon10" {
 
@@ -49,6 +52,20 @@ resource "aws_s3_bucket_policy" "static_site" {
             },
             "Action": "s3:GetObject",
             "Resource": "${aws_s3_bucket.magnetathon10.arn}/*"
+        },
+        {
+            "Sid": "GiveSESPermissionToWriteEmail",
+            "Effect": "Allow",
+            "Principal": {
+                "Service": "ses.amazonaws.com"
+            },
+            "Action": "s3:PutObject",
+            "Resource": "${aws_s3_bucket.magnetathon10.arn}/*",
+            "Condition": {
+                "StringEquals": {
+                    "aws:Referer": "${data.aws_caller_identity.current.id}"
+                }
+            }
         }
     ]
 }
@@ -63,6 +80,35 @@ resource "aws_s3_bucket_object" "dist" {
   source = "../../ui/magnetathon/out/${each.value}"
   etag = filemd5("../../ui/magnetathon/out/${each.value}")
   content_type  = lookup(local.mime_types, split(".", each.value)[length(split(".", each.value)) - 1])
+}
+
+# Configure ACM Certificate
+resource "aws_acm_certificate" "main_cert" {
+  domain_name = var.domain_name
+  subject_alternative_names = ["*.${var.domain_name}"]
+  validation_method = "DNS"
+}
+
+resource "aws_route53_record" "verification" {
+  for_each = {
+    for dvo in aws_acm_certificate.main_cert.domain_validation_options : dvo.domain_name => {
+      name   = dvo.resource_record_name
+      record = dvo.resource_record_value
+      type   = dvo.resource_record_type
+    }
+  }
+
+  allow_overwrite = true
+  name            = each.value.name
+  records         = [each.value.record]
+  ttl             = 60
+  type            = each.value.type
+  zone_id         = var.route53_zone_id
+}
+
+resource "aws_acm_certificate_validation" "main_cert" {
+  certificate_arn = aws_acm_certificate.main_cert.arn
+  validation_record_fqdns = [for record in aws_route53_record.verification : record.fqdn]
 }
 
 resource "aws_cloudfront_origin_access_identity" "website" {
@@ -84,7 +130,6 @@ resource "aws_cloudfront_distribution" "s3_distribution" {
   is_ipv6_enabled     = true
   comment             = "${var.deployment_name} deployment"
   default_root_object = "index.html"
-  
   aliases = [ "${var.deployment_name}.${var.domain_name}" ]
 
   default_cache_behavior {
@@ -120,7 +165,7 @@ resource "aws_cloudfront_distribution" "s3_distribution" {
 
   viewer_certificate {
     # cloudfront_default_certificate = true
-    acm_certificate_arn = var.subdomain_acm_certificate_arn
+    acm_certificate_arn = aws_acm_certificate_validation.main_cert.certificate_arn
     ssl_support_method = "sni-only"
   }
 }
