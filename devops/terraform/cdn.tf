@@ -17,10 +17,10 @@ locals {
 resource "aws_s3_bucket" "magnetathon10" {
 
   bucket = "s3-terraform-magnetathon10-${var.deployment_name}"
-  acl    = "private"
+  acl    = "public-read"
   tags = {
-    Name        = "Magnetathon10 Bucket"
-    Environment = "Dev"
+    Name        = "Magnetathon10 Bucket for ${var.deployment_name}"
+    Environment = "${var.deployment_name}"
   }
 
   website {
