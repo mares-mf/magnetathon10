@@ -1,6 +1,6 @@
 ﻿import Link from 'next/link'
 
-export default function ContentA() {
+export default function ContentType() {
     return (
         <>
             <h1>Some categorized content!</h1>

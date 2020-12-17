@@ -19,10 +19,12 @@ export default function Home() {
         </p>
 
         <div className="grid">
-          <a href="/ContentType/ContentA" className="card">
-            <h3>Content! &rarr;</h3>
-            <p>Explore some content.</p>
-          </a>
+          <Link href="/ContentType">
+            <a className="card">
+              <h3>Content! &rarr;</h3>
+              <p>Explore some content that we made ourselves!</p>
+            </a>
+          </Link>
 
           <a href="https://nextjs.org/learn" className="card">
             <h3>Learn &rarr;</h3>
