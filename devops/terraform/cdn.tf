@@ -17,7 +17,7 @@ locals {
 resource "aws_s3_bucket" "magnetathon10" {
 
   bucket = "s3-terraform-magnetathon10-${var.deployment_name}"
-  acl    = "public-read"
+  acl    = "private"
   tags = {
     Name        = "Magnetathon10 Bucket for ${var.deployment_name}"
     Environment = "${var.deployment_name}"
@@ -36,12 +36,15 @@ resource "aws_s3_bucket_policy" "static_site" {
   policy = <<POLICY
 {
     "Version": "2012-10-17",
+    "Id": "bucket_policy_site",
     "Statement": [
         {
             "Effect": "Allow",
-            "Principal": "*",
+            "Principal": {
+                "AWS": "${aws_cloudfront_origin_access_identity.website.iam_arn}"
+            },
             "Action": "s3:GetObject",
-            "Resource": "arn:aws:s3:::s3-terraform-magnetathon10-${var.deployment_name}/*"
+            "Resource": "${aws_s3_bucket.magnetathon10.arn}/*"
         }
     ]
 }
