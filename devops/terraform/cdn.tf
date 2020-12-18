@@ -1,183 +1,29 @@
-locals {
-  mime_types = {
-    htm   = "text/html"
-    html  = "text/html"
-    css   = "text/css"
-    ttf   = "font/ttf"
-    js    = "application/javascript"
-    map   = "application/javascript"
-    json  = "application/json"
-    ico = "image/png"
-    svg = "image/svg+xml"
-  }
-  s3_origin_id = "s3-terraform-magnetathon-10-${var.deployment_name}"
-}
-
-# Get caller information
-data "aws_caller_identity" "current" {}
-
-# Create bucket
-resource "aws_s3_bucket" "magnetathon10" {
-
-  bucket = "s3-terraform-magnetathon10-${var.deployment_name}"
-  acl    = "private"
-  tags = {
-    Name        = "Magnetathon10 Bucket for ${var.deployment_name}"
-    Environment = var.deployment_name
-  }
-
-  versioning {
-    enabled = true
-  }
-
-  website {
-    index_document = "index.html"
-    error_document = "404.html"
-  }
-}
-
-# Create static site bucket policy
-resource "aws_s3_bucket_policy" "static_site" {
-  bucket = aws_s3_bucket.magnetathon10.id
-
-  policy = <<POLICY
-{
-    "Version": "2012-10-17",
-    "Id": "bucket_policy_site",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Principal": {
-                "AWS": "${aws_cloudfront_origin_access_identity.website.iam_arn}"
-            },
-            "Action": "s3:GetObject",
-            "Resource": "${aws_s3_bucket.magnetathon10.arn}/*"
-        },
-        {
-            "Sid": "GiveSESPermissionToWriteEmail",
-            "Effect": "Allow",
-            "Principal": {
-                "Service": "ses.amazonaws.com"
-            },
-            "Action": "s3:PutObject",
-            "Resource": "${aws_s3_bucket.magnetathon10.arn}/*",
-            "Condition": {
-                "StringEquals": {
-                    "aws:Referer": "${data.aws_caller_identity.current.id}"
-                }
-            }
-        }
-    ]
-}
-POLICY
-}
-
-# Upload static files to S3
-resource "aws_s3_bucket_object" "dist" {
-  for_each = fileset("../../ui/magnetathon/out/", "**")
-  bucket = aws_s3_bucket.magnetathon10.id
-  key = each.value
-  source = "../../ui/magnetathon/out/${each.value}"
-  etag = filemd5("../../ui/magnetathon/out/${each.value}")
-  content_type  = lookup(local.mime_types, split(".", each.value)[length(split(".", each.value)) - 1])
-}
-
-# Configure ACM Certificate
-resource "aws_acm_certificate" "main_cert" {
-  domain_name = var.domain_name
-  subject_alternative_names = ["*.${var.domain_name}"]
-  validation_method = "DNS"
-}
-
-resource "aws_route53_record" "verification" {
-  for_each = {
-    for dvo in aws_acm_certificate.main_cert.domain_validation_options : dvo.domain_name => {
-      name   = dvo.resource_record_name
-      record = dvo.resource_record_value
-      type   = dvo.resource_record_type
-    }
-  }
-
-  allow_overwrite = true
-  name            = each.value.name
-  records         = [each.value.record]
-  ttl             = 60
-  type            = each.value.type
-  zone_id         = var.route53_zone_id
-}
-
-resource "aws_acm_certificate_validation" "main_cert" {
-  certificate_arn = aws_acm_certificate.main_cert.arn
-  validation_record_fqdns = [for record in aws_route53_record.verification : record.fqdn]
-}
-
 resource "aws_cloudfront_origin_access_identity" "website" {
   comment = "static content for ${var.deployment_name}"
 }
 
-# Configure cloudfront distribution
-resource "aws_cloudfront_distribution" "s3_distribution" {
-  origin {
-    domain_name = aws_s3_bucket.magnetathon10.bucket_regional_domain_name
-    origin_id   = local.s3_origin_id
+module "s3" {
+  source = "./modules/s3"
 
-    s3_origin_config {
-      origin_access_identity = aws_cloudfront_origin_access_identity.website.cloudfront_access_identity_path
-    }
-  }
-
-  enabled             = true
-  is_ipv6_enabled     = true
-  comment             = "${var.deployment_name} deployment"
-  default_root_object = "index.html"
-  aliases = [ "${var.deployment_name}.${var.domain_name}" ]
-
-  default_cache_behavior {
-    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
-    cached_methods   = ["GET", "HEAD"]
-    target_origin_id = local.s3_origin_id
-
-    forwarded_values {
-      query_string = false
-
-      cookies {
-        forward = "none"
-      }
-    }
-
-    viewer_protocol_policy = "redirect-to-https"
-    min_ttl                = 0
-    default_ttl            = 300
-    max_ttl                = 300
-  }
-
-  price_class = "PriceClass_100"
-
-  restrictions {
-    geo_restriction {
-      restriction_type = "none"
-    }
-  }
-
-  tags = {
-    Environment = var.deployment_name
-  }
-
-  viewer_certificate {
-    # cloudfront_default_certificate = true
-    acm_certificate_arn = aws_acm_certificate_validation.main_cert.certificate_arn
-    ssl_support_method = "sni-only"
-  }
+  deployment_name = var.deployment_name
+  domain_name = var.domain_name
+  iam_arn = aws_cloudfront_origin_access_identity.website.iam_arn
 }
 
-resource "aws_route53_record" "subdomain" {
-  zone_id = var.route53_zone_id
-  name    = "${var.deployment_name}.${var.domain_name}"
-  type    = "A"
+module "acm" {
+  source = "./modules/acm"
 
-  alias {
-    name = aws_cloudfront_distribution.s3_distribution.domain_name
-    zone_id = aws_cloudfront_distribution.s3_distribution.hosted_zone_id
-    evaluate_target_health = false
-  }
+  domain_name = var.domain_name
+  route53_zone_id = var.route53_zone_id
+}
+
+module "cloudfront" {
+  source = "./modules/cloudfront"
+
+  domain_name = var.domain_name
+  route53_zone_id = var.route53_zone_id
+  deployment_name = var.deployment_name
+  s3_bucket_regional_domain_name = module.s3.s3_bucket_regional_domain_name
+  acm_certificate_arn = module.acm.certificate_arn
+  cloudfront_access_identity_path = aws_cloudfront_origin_access_identity.website.cloudfront_access_identity_path
 }
