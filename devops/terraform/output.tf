@@ -1,11 +1,11 @@
 output "S3_Bucket" {
-  value = aws_s3_bucket.magnetathon10.website_endpoint
+  value = module.s3.S3_Bucket
 }
 
 output "CloudFront_Domain" {
-  value = aws_cloudfront_distribution.s3_distribution.domain_name
+  value = module.cloudfront.CloudFront_Domain
 }
 
 output "CloudFront_Domain_Aliases" {
-  value = aws_cloudfront_distribution.s3_distribution.aliases
+  value = module.cloudfront.CloudFront_Domain_Aliases
 }
